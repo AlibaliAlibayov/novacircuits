@@ -3,128 +3,386 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 IoT Control Center</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Livestock GPS Tracker & Safe Zone Monitor</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        /* Base Reset & Variables */
+        :root {
+            --bg-primary: #0f172a;
+            --bg-surface: #1e293b;
+            --bg-card: #111827;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --border-color: #334155;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            overflow: hidden;
+        }
+
+        /* Split-screen Dashboard Layout */
+        .dashboard-layout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Left Side: Control Panel & Status Data */
+        .control-panel {
+            width: 40%;
+            height: 100%;
+            background-color: var(--bg-surface);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .panel-header {
+            padding: 24px;
+            background-color: rgba(15, 23, 42, 0.4);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-header h1 {
+            margin: 0 0 6px 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .panel-header p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .panel-content {
+            padding: 24px;
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Cards & Info Widgets */
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .card-title {
+            margin: 0 0 14px 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background-color: var(--accent-red);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--accent-red);
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.online {
+            background-color: var(--accent-green);
+            box-shadow: 0 0 8px var(--accent-green);
+        }
+
+        .telemetry-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .data-field {
+            background: rgba(15, 23, 42, 0.3);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .data-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .data-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.125rem;
+            font-weight: 500;
+        }
+
+        /* Real-Time Live Logs Section */
+        .log-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            max-height: 300px;
+        }
+
+        .log-header {
+            padding: 12px 16px;
+            background: rgba(15, 23, 42, 0.5);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.825rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .log-body {
+            padding: 12px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            overflow-y: auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            color: #cbd5e1;
+        }
+
+        .log-entry {
+            line-height: 1.4;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+            padding-bottom: 4px;
+        }
+
+        .log-time {
+            color: var(--accent-blue);
+            margin-right: 6px;
+        }
+
+        /* Right Side: Interactive Map Frame */
+        .map-container {
+            width: 60%;
+            height: 100%;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Dark Mode overrides for Leaflet controls */
+        .leaflet-control-zoom a {
+            background-color: var(--bg-surface) !important;
+            color: var(--text-main) !important;
+            border-color: var(--border-color) !important;
+        }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between">
+<body>
 
-    <header class="bg-slate-800 border-b border-slate-700 py-5 px-6 shadow-md">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></div>
-                <h1 class="text-xl font-bold tracking-wide uppercase">Realtime Telemetry Dashboard</h1>
-            </div>
-            <div class="text-xs bg-slate-900 border border-slate-700 text-slate-400 py-1.5 px-3 rounded-md font-mono">
-                Project ID: djjgtbylekhfrfyadkn
-            </div>
-        </div>
-    </header>
-
-    <main class="flex-grow p-6 max-w-7xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+    <div class="dashboard-layout">
         
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl space-y-4">
-            <h2 class="text-lg font-semibold border-b border-slate-700 pb-2 text-slate-300">System Monitoring</h2>
-            <div class="grid grid-cols-2 gap-4">
-                <div class="bg-slate-950 p-4 rounded-lg border border-slate-850">
-                    <span class="text-xs text-slate-400 block uppercase font-medium tracking-wider">Connection Status</span>
-                    <span id="connection-status" class="text-sm font-semibold text-amber-400">Connecting to Stream...</span>
-                </div>
-                <div class="bg-slate-950 p-4 rounded-lg border border-slate-850">
-                    <span class="text-xs text-slate-400 block uppercase font-medium tracking-wider">Last Sync Time</span>
-                    <span id="last-updated" class="text-sm font-mono text-slate-300">--:--:--</span>
-                </div>
+        <div class="control-panel">
+            <div class="panel-header">
+                <h1>Livestock Protection System</h1>
+                <p>ESP32 Safe Zone Tracking Console</p>
             </div>
             
-            <div class="bg-slate-950 p-4 rounded-lg border border-slate-850 space-y-2">
-                <span class="text-xs text-slate-400 block uppercase font-medium tracking-wider">Latest Payload Snippet</span>
-                <pre id="raw-json" class="text-xs font-mono text-emerald-400 overflow-x-auto bg-slate-900 p-3 rounded border border-slate-800 max-h-40">Waiting for data injection from ESP32...</pre>
+            <div class="panel-content">
+                <div class="card">
+                    <div class="card-title">Network Connectivity</div>
+                    <div class="status-badge">
+                        <div id="status-indicator" class="status-dot"></div>
+                        <span id="status-text">Disconnected (Waiting for stream)</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Live Positioning Data</div>
+                    <div class="telemetry-grid">
+                        <div class="data-field">
+                            <div class="data-label">Latitude</div>
+                            <div id="lat-val" class="data-value">0.000000</div>
+                        </div>
+                        <div class="data-field">
+                            <div class="data-label">Longitude</div>
+                            <div id="lng-val" class="data-value">0.000000</div>
+                        </div>
+                        <div class="data-field" style="grid-column: span 2;">
+                            <div class="data-label">Magnetic Field (Hall Sensor)</div>
+                            <div id="hall-val" class="data-value">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="log-container">
+                    <div class="log-header">System Broadcast Event Logs</div>
+                    <div id="log-feed" class="log-body">
+                        <div class="log-entry"><span class="log-time">[System]</span> Initializing interface clients...</div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl space-y-4">
-            <h2 class="text-lg font-semibold border-b border-slate-700 pb-2 text-slate-300">Terminal Context Logs</h2>
-            <div class="bg-slate-950 p-4 rounded-lg border border-slate-850 min-h-[180px]">
-                <ul id="log-list" class="space-y-2 font-mono text-xs text-slate-400">
-                    <li class="text-slate-500">[SYSTEM] Initialization routine requested...</li>
-                    <li class="text-emerald-500">[INFO] Global reference updated cleanly to 'mysupabase'.</li>
-                </ul>
-            </div>
+        <div class="map-container">
+            <div id="map"></div>
         </div>
 
-    </main>
+    </div>
 
-    <footer class="bg-slate-950 border-t border-slate-800 py-3 px-6 text-center text-xs text-slate-500 font-mono">
-        &copy; 2026 Linux Ubuntu Cluster Deployment Engine • Supabase Realtime JS Client v2
-    </footer>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <script type="module">
-        // Configurations extracted safely from user authentication token context
+    <script>
+        // --- CONFIGURATION ---
         const SUPABASE_URL = "https://djjgtbylekhfrfyadkn.supabase.co";
-        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqamd0YnlsZWtoZnJyZnlhZGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MDY1MDcsImV4cCI6MjA5ODA4MjUwN30.kCtFUNPFffCR5khqUeudLf-btZJhRFkND6hiyjm0Vcc";
+        const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY"; // Replace with your project Anon key
+        
+        // Initialize Supabase Client
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // Global constant altered exactly to requested namespace 'mysupabase'
-        const mysupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // --- MAP ENGINE SETUP ---
+        // Defaults coordinates to Baku center
+        const map = L.map('map').setView([40.4093, 49.8671], 13);
 
-        const statusEl = document.getElementById('connection-status');
-        const timeEl = document.getElementById('last-updated');
-        const jsonEl = document.getElementById('raw-json');
-        const logList = document.getElementById('log-list');
+        // Load premium dark-theme map tiles to match console design
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
 
-        function appendLog(message, type = 'info') {
-            const li = document.createElement('li');
+        // Custom clean circle icon design for tracker position marker
+        const liveMarkerIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="background-color: #3b82f6; width: 14px; height: 14px; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 0 10px #3b82f6;"></div>`,
+            iconSize:,
+            iconAnchor:
+        });
+
+        let currentMarker = null;
+
+        // Force dynamic redraw recalculation to guarantee Leaflet scales evenly across flex frames
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 300);
+
+        // --- HELPER LOG UTILITY ---
+        function writeToLog(source, message) {
+            const feed = document.getElementById('log-feed');
             const timestamp = new Date().toLocaleTimeString();
-            li.textContent = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
-            if(type === 'success') li.className = 'text-emerald-400';
-            else if(type === 'error') li.className = 'text-rose-400';
-            else li.className = 'text-slate-400';
-            logList.appendChild(li);
-            // Keep logs scrolled down
-            logList.parentElement.scrollTop = logList.parentElement.scrollHeight;
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${timestamp}]</span> <strong>${source}:</strong> ${message}`;
+            feed.appendChild(entry);
+            feed.scrollTop = feed.scrollHeight; // Auto-scroll downward
         }
 
-        // Initialize connection diagnostics
-        if (mysupabase) {
-            statusEl.textContent = "Connected to Supabase Cluster";
-            statusEl.className = "text-sm font-semibold text-emerald-400";
-            appendLog("Client configured to point successfully at target edge database.", "success");
-        } else {
-            statusEl.textContent = "Initialization Failed";
-            statusEl.className = "text-sm font-semibold text-rose-500";
-            appendLog("Fatal reference structure drop encountered during instantiation.", "error");
+        // --- DATA INTERFACE RENDERER ---
+        function updateDashboardUI(latitude, longitude, hallValue) {
+            // Update Text Elements
+            document.getElementById('lat-val').textContent = parseFloat(latitude).toFixed(6);
+            document.getElementById('lng-val').textContent = parseFloat(longitude).toFixed(6);
+            document.getElementById('hall-val').textContent = hallValue;
+
+            const targetLatLng = [latitude, longitude];
+
+            // Render or transition positioning marker on map frame
+            if (!currentMarker) {
+                currentMarker = L.marker(targetLatLng, { icon: liveMarkerIcon }).addTo(map);
+                map.setView(targetLatLng, 16);
+                writeToLog("Map Engine", "Initialized live marker at lock coordinates.");
+            } else {
+                currentMarker.setLatLng(targetLatLng);
+                map.panTo(targetLatLng);
+            }
+            
+            // Set dynamic descriptive popup alert window
+            currentMarker.bindPopup(`<b>Livestock Tracking Unit</b><br>Lat: ${latitude}<br>Lng: ${longitude}<br>Hall Status: ${hallValue}`).openPopup();
         }
 
-        // --- Realtime Subscription Template Routing ---
-        // Listening to broadcast updates safely from your tracking data channels
-        mysupabase
-            .channel('schema-db-changes')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public' },
-                (payload) => {
-                    console.log('Realtime change intercepted:', payload);
+        // --- SEED SELECTION ON INITIAL LAUNCH ---
+        async function fetchLastKnownPosition() {
+            writeToLog("Database", "Fetching last stored coordinate track summary...");
+            const { data, error } = await supabase
+                .from('gps_hall_data')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (error) {
+                writeToLog("Database Error", error.message);
+                return;
+            }
+
+            if (data && data.length > 0) {
+                const record = data;
+                writeToLog("Sync Success", `Recovered coordinates: ${record.latitude}, ${record.longitude}`);
+                updateDashboardUI(record.latitude, record.longitude, record.hall_value);
+                
+                // Switch status node to online since data is loaded and alive
+                document.getElementById('status-indicator').classList.add('online');
+                document.getElementById('status-text').textContent = "Live Monitoring Active";
+            } else {
+                writeToLog("Database", "Table contains empty coordinate logs.");
+            }
+        }
+
+        // --- REALTIME SUBSCRIPTION ENGINE ---
+        function startRealtimeStream() {
+            writeToLog("Network", "Establishing pipeline channel to Supabase broadcast stream...");
+
+            const trackingSubscription = supabase
+                .channel('public:gps_hall_data')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gps_hall_data' }, (payload) => {
+                    writeToLog("ESP32 Stream", "Inbound telemetry ping received!");
                     
-                    // UI State Interfacing updates
-                    timeEl.textContent = new Date().toLocaleTimeString();
-                    statusEl.textContent = "Live Feed Syncing";
-                    statusEl.className = "text-sm font-semibold text-cyan-400";
-                    
-                    // Inject formatted JSON string into workspace display
-                    jsonEl.textContent = JSON.stringify(payload.new, null, 2);
-                    appendLog(`Intercepted secure record ingestion on ID: ${payload.new.id || 'Row'}`, 'success');
-                    
-                    // Clean pulse visual fallback tracking reset
-                    setTimeout(() => {
-                        statusEl.textContent = "Connected to Supabase Cluster";
-                        statusEl.className = "text-sm font-semibold text-emerald-400";
-                    }, 1200);
-                }
-            )
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    appendLog("Postgres realtime network channel subscribed and listening successfully.", "info");
-                }
-            });
+                    const newRecord = payload.new;
+                    updateDashboardUI(newRecord.latitude, newRecord.longitude, newRecord.hall_value);
+                })
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        writeToLog("Pipeline", "Channel connection verified. Live tracking listening.");
+                    }
+                });
+        }
+
+        // Bootstrapping
+        fetchLastKnownPosition();
+        startRealtimeStream();
     </script>
 </body>
 </html>
