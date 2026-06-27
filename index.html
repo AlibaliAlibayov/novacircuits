@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT Live Tracker & Health Monitor - Baku</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f6f9; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { color: #333; text-align: center; }
+    .status-panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; justify-content: space-around; font-size: 1.1em; align-items: center; }
+    .badge { padding: 5px 15px; border-radius: 20px; font-weight: bold; }
+    .detected { background-color: #ff4d4d; color: white; }
+    .clear { background-color: #2ecc71; color: white; }
+    .pulse-rate { font-size: 1.4em; font-weight: bold; color: #e74c3c; animation: beat 1s infinite alternate; }
+    @keyframes beat { to { transform: scale(1.05); } }
+    #map { height: 500px; width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Deniz Mall Baku - IoT Monitoring Dashboard</h1>
+  
+  <div class="status-panel">
+    <div>Magnetic Status: <span id="magnetic-status" class="badge clear">No Magnet Detected</span></div>
+    <div>Pulse Rate: <span id="bpm-display" class="pulse-rate">--</span> BPM ❤️</div>
+    <div>Current Coordinates: <span id="coordinates">40.359600, 49.836800</span></div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<script>
+  // --- Replace with your actual credentials ---
+  const SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co";
+  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_PUBLIC_KEY";
+
+  const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Initialize Leaflet Map centered explicitly at Deniz Mall, Baku
+  const map = L.map('map').setView([40.359600, 49.836800], 16);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  let statusMarker;
+
+  // Function to process incoming updates and paint elements dynamically
+  function updateUI(data) {
+    if (!data) return;
+    
+    const lat = parseFloat(data.latitude);
+    const lng = parseFloat(data.longitude);
+    const hasMagnet = data.is_magnetic;
+    const heartRate = data.bpm || 0;
+
+    // Update textual indicators
+    document.getElementById('bpm-display').innerText = heartRate;
+    document.getElementById('coordinates').innerText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    
+    const statusText = document.getElementById('magnetic-status');
+    if (hasMagnet) {
+      statusText.innerText = "MAGNET DETECTED!";
+      statusText.className = "badge detected";
+    } else {
+      statusText.innerText = "No Magnet Detected";
+      statusText.className = "badge clear";
+    }
+
+    // Move or create the indicator pin on the map viewport
+    if (statusMarker) {
+      statusMarker.setLatLng([lat, lng]);
+    } else {
+      statusMarker = L.marker([lat, lng]).addTo(map);
+      map.setView([lat, lng], 16); // Dynamic center lock
+    }
+    
+    // Bind popup label details
+    statusMarker.bindPopup(`
+      <b>Location: Deniz Mall, Baku</b><br>
+      <b>Environment:</b> ${hasMagnet ? 'Magnetic Area 🧲' : 'Normal Area'}<br>
+      <b>Vitals:</b> ${heartRate} BPM ❤️<br>
+      <b>Last Checked:</b> ${new Date(data.created_at).toLocaleTimeString()}
+    `).openPopup();
+  }
+
+  // Fetch the latest telemetry baseline point upon visiting the site
+  async function fetchLatestData() {
+    const { data, error } = await supabase
+      .from('gps_hall_data')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) console.error('Error fetching baseline details:', error);
+    if (data && data.length > 0) {
+      updateUI(data);
+    } else {
+      // Force design visualization setup even if database starts out empty
+      updateUI({ latitude: 40.359600, longitude: 49.836800, is_magnetic: false, bpm: 0, created_at: new Date() });
+    }
+  }
+
+  // Subscribe to real-time additions broadcasted from the Supabase Engine
+  function subscribeToRealtime() {
+    supabase
+      .channel('public:gps_hall_data')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gps_hall_data' }, payload => {
+        console.log('New live payload arrived:', payload.new);
+        updateUI(payload.new);
+      })
+      .subscribe();
+  }
+
+  // Boot UI execution
+  fetchLatestData();
+  subscribeToRealtime();
+</script>
+
+</body>
+</html>
