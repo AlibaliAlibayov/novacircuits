@@ -36,9 +36,9 @@
 </div>
 
 <script>
-  // --- Replace with your actual credentials ---
-  const SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co";
-  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_PUBLIC_KEY";
+  // Inserted your exact Supabase project URL and anon public key
+  const SUPABASE_URL = "https://djjgtbylekhfrfyadkn.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqamd0YnlsZWtoZnJyZnlhZGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MDY1MDcsImV4cCI6MjA5ODA4MjUwN30.kCtFUNPFffCR5khqUeudLf-btZJhRFkND6hiyjm0Vcc";
 
   const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -50,7 +50,6 @@
 
   let statusMarker;
 
-  // Function to process incoming updates and paint elements dynamically
   function updateUI(data) {
     if (!data) return;
     
@@ -59,7 +58,6 @@
     const hasMagnet = data.is_magnetic;
     const heartRate = data.bpm || 0;
 
-    // Update textual indicators
     document.getElementById('bpm-display').innerText = heartRate;
     document.getElementById('coordinates').innerText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     
@@ -72,15 +70,13 @@
       statusText.className = "badge clear";
     }
 
-    // Move or create the indicator pin on the map viewport
     if (statusMarker) {
       statusMarker.setLatLng([lat, lng]);
     } else {
       statusMarker = L.marker([lat, lng]).addTo(map);
-      map.setView([lat, lng], 16); // Dynamic center lock
+      map.setView([lat, lng], 16); 
     }
     
-    // Bind popup label details
     statusMarker.bindPopup(`
       <b>Location: Deniz Mall, Baku</b><br>
       <b>Environment:</b> ${hasMagnet ? 'Magnetic Area 🧲' : 'Normal Area'}<br>
@@ -89,7 +85,6 @@
     `).openPopup();
   }
 
-  // Fetch the latest telemetry baseline point upon visiting the site
   async function fetchLatestData() {
     const { data, error } = await supabase
       .from('gps_hall_data')
@@ -101,12 +96,10 @@
     if (data && data.length > 0) {
       updateUI(data);
     } else {
-      // Force design visualization setup even if database starts out empty
       updateUI({ latitude: 40.359600, longitude: 49.836800, is_magnetic: false, bpm: 0, created_at: new Date() });
     }
   }
 
-  // Subscribe to real-time additions broadcasted from the Supabase Engine
   function subscribeToRealtime() {
     supabase
       .channel('public:gps_hall_data')
@@ -117,7 +110,6 @@
       .subscribe();
   }
 
-  // Boot UI execution
   fetchLatestData();
   subscribeToRealtime();
 </script>
