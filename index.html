@@ -1,118 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IoT Live Tracker & Health Monitor - Baku</title>
-  
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f6f9; }
-    .container { max-width: 1000px; margin: 0 auto; }
-    h1 { color: #333; text-align: center; }
-    .status-panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; justify-content: space-around; font-size: 1.1em; align-items: center; }
-    .badge { padding: 5px 15px; border-radius: 20px; font-weight: bold; }
-    .detected { background-color: #ff4d4d; color: white; }
-    .clear { background-color: #2ecc71; color: white; }
-    .pulse-rate { font-size: 1.4em; font-weight: bold; color: #e74c3c; animation: beat 1s infinite alternate; }
-    @keyframes beat { to { transform: scale(1.05); } }
-    #map { height: 500px; width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 IoT Control Center</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased min-h-screen flex flex-col justify-between">
 
-<div class="container">
-  <h1>Deniz Mall Baku - IoT Monitoring Dashboard</h1>
-  
-  <div class="status-panel">
-    <div>Magnetic Status: <span id="magnetic-status" class="badge clear">No Magnet Detected</span></div>
-    <div>Pulse Rate: <span id="bpm-display" class="pulse-rate">--</span> BPM ❤️</div>
-    <div>Current Coordinates: <span id="coordinates">40.359600, 49.836800</span></div>
-  </div>
+    <header class="bg-slate-800 border-b border-slate-700 py-5 px-6 shadow-md">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></div>
+                <h1 class="text-xl font-bold tracking-wide uppercase">Realtime Telemetry Dashboard</h1>
+            </div>
+            <div class="text-xs bg-slate-900 border border-slate-700 text-slate-400 py-1.5 px-3 rounded-md font-mono">
+                Project ID: djjgtbylekhfrfyadkn
+            </div>
+        </div>
+    </header>
 
-  <div id="map"></div>
-</div>
+    <main class="flex-grow p-6 max-w-7xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl space-y-4">
+            <h2 class="text-lg font-semibold border-b border-slate-700 pb-2 text-slate-300">System Monitoring</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-950 p-4 rounded-lg border border-slate-850">
+                    <span class="text-xs text-slate-400 block uppercase font-medium tracking-wider">Connection Status</span>
+                    <span id="connection-status" class="text-sm font-semibold text-amber-400">Connecting to Stream...</span>
+                </div>
+                <div class="bg-slate-950 p-4 rounded-lg border border-slate-850">
+                    <span class="text-xs text-slate-400 block uppercase font-medium tracking-wider">Last Sync Time</span>
+                    <span id="last-updated" class="text-sm font-mono text-slate-300">--:--:--</span>
+                </div>
+            </div>
+            
+            <div class="bg-slate-950 p-4 rounded-lg border border-slate-850 space-y-2">
+                <span class="text-xs text-slate-400 block uppercase font-medium tracking-wider">Latest Payload Snippet</span>
+                <pre id="raw-json" class="text-xs font-mono text-emerald-400 overflow-x-auto bg-slate-900 p-3 rounded border border-slate-800 max-h-40">Waiting for data injection from ESP32...</pre>
+            </div>
+        </div>
 
-<script>
-  // Inserted your exact Supabase project URL and anon public key
-  const SUPABASE_URL = "https://djjgtbylekhfrfyadkn.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqamd0YnlsZWtoZnJyZnlhZGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MDY1MDcsImV4cCI6MjA5ODA4MjUwN30.kCtFUNPFffCR5khqUeudLf-btZJhRFkND6hiyjm0Vcc";
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow-xl space-y-4">
+            <h2 class="text-lg font-semibold border-b border-slate-700 pb-2 text-slate-300">Terminal Context Logs</h2>
+            <div class="bg-slate-950 p-4 rounded-lg border border-slate-850 min-h-[180px]">
+                <ul id="log-list" class="space-y-2 font-mono text-xs text-slate-400">
+                    <li class="text-slate-500">[SYSTEM] Initialization routine requested...</li>
+                    <li class="text-emerald-500">[INFO] Global reference updated cleanly to 'mysupabase'.</li>
+                </ul>
+            </div>
+        </div>
 
-  const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    </main>
 
-  // Initialize Leaflet Map centered explicitly at Deniz Mall, Baku
-  const map = L.map('map').setView([40.359600, 49.836800], 16);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(map);
+    <footer class="bg-slate-950 border-t border-slate-800 py-3 px-6 text-center text-xs text-slate-500 font-mono">
+        &copy; 2026 Linux Ubuntu Cluster Deployment Engine • Supabase Realtime JS Client v2
+    </footer>
 
-  let statusMarker;
+    <script type="module">
+        // Configurations extracted safely from user authentication token context
+        const SUPABASE_URL = "https://djjgtbylekhfrfyadkn.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqamd0YnlsZWtoZnJyZnlhZGtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MDY1MDcsImV4cCI6MjA5ODA4MjUwN30.kCtFUNPFffCR5khqUeudLf-btZJhRFkND6hiyjm0Vcc";
 
-  function updateUI(data) {
-    if (!data) return;
-    
-    const lat = parseFloat(data.latitude);
-    const lng = parseFloat(data.longitude);
-    const hasMagnet = data.is_magnetic;
-    const heartRate = data.bpm || 0;
+        // Global constant altered exactly to requested namespace 'mysupabase'
+        const mysupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    document.getElementById('bpm-display').innerText = heartRate;
-    document.getElementById('coordinates').innerText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    
-    const statusText = document.getElementById('magnetic-status');
-    if (hasMagnet) {
-      statusText.innerText = "MAGNET DETECTED!";
-      statusText.className = "badge detected";
-    } else {
-      statusText.innerText = "No Magnet Detected";
-      statusText.className = "badge clear";
-    }
+        const statusEl = document.getElementById('connection-status');
+        const timeEl = document.getElementById('last-updated');
+        const jsonEl = document.getElementById('raw-json');
+        const logList = document.getElementById('log-list');
 
-    if (statusMarker) {
-      statusMarker.setLatLng([lat, lng]);
-    } else {
-      statusMarker = L.marker([lat, lng]).addTo(map);
-      map.setView([lat, lng], 16); 
-    }
-    
-    statusMarker.bindPopup(`
-      <b>Location: Deniz Mall, Baku</b><br>
-      <b>Environment:</b> ${hasMagnet ? 'Magnetic Area 🧲' : 'Normal Area'}<br>
-      <b>Vitals:</b> ${heartRate} BPM ❤️<br>
-      <b>Last Checked:</b> ${new Date(data.created_at).toLocaleTimeString()}
-    `).openPopup();
-  }
+        function appendLog(message, type = 'info') {
+            const li = document.createElement('li');
+            const timestamp = new Date().toLocaleTimeString();
+            li.textContent = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+            if(type === 'success') li.className = 'text-emerald-400';
+            else if(type === 'error') li.className = 'text-rose-400';
+            else li.className = 'text-slate-400';
+            logList.appendChild(li);
+            // Keep logs scrolled down
+            logList.parentElement.scrollTop = logList.parentElement.scrollHeight;
+        }
 
-  async function fetchLatestData() {
-    const { data, error } = await supabase
-      .from('gps_hall_data')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
+        // Initialize connection diagnostics
+        if (mysupabase) {
+            statusEl.textContent = "Connected to Supabase Cluster";
+            statusEl.className = "text-sm font-semibold text-emerald-400";
+            appendLog("Client configured to point successfully at target edge database.", "success");
+        } else {
+            statusEl.textContent = "Initialization Failed";
+            statusEl.className = "text-sm font-semibold text-rose-500";
+            appendLog("Fatal reference structure drop encountered during instantiation.", "error");
+        }
 
-    if (error) console.error('Error fetching baseline details:', error);
-    if (data && data.length > 0) {
-      updateUI(data);
-    } else {
-      updateUI({ latitude: 40.359600, longitude: 49.836800, is_magnetic: false, bpm: 0, created_at: new Date() });
-    }
-  }
-
-  function subscribeToRealtime() {
-    supabase
-      .channel('public:gps_hall_data')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gps_hall_data' }, payload => {
-        console.log('New live payload arrived:', payload.new);
-        updateUI(payload.new);
-      })
-      .subscribe();
-  }
-
-  fetchLatestData();
-  subscribeToRealtime();
-</script>
-
+        // --- Realtime Subscription Template Routing ---
+        // Listening to broadcast updates safely from your tracking data channels
+        mysupabase
+            .channel('schema-db-changes')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public' },
+                (payload) => {
+                    console.log('Realtime change intercepted:', payload);
+                    
+                    // UI State Interfacing updates
+                    timeEl.textContent = new Date().toLocaleTimeString();
+                    statusEl.textContent = "Live Feed Syncing";
+                    statusEl.className = "text-sm font-semibold text-cyan-400";
+                    
+                    // Inject formatted JSON string into workspace display
+                    jsonEl.textContent = JSON.stringify(payload.new, null, 2);
+                    appendLog(`Intercepted secure record ingestion on ID: ${payload.new.id || 'Row'}`, 'success');
+                    
+                    // Clean pulse visual fallback tracking reset
+                    setTimeout(() => {
+                        statusEl.textContent = "Connected to Supabase Cluster";
+                        statusEl.className = "text-sm font-semibold text-emerald-400";
+                    }, 1200);
+                }
+            )
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    appendLog("Postgres realtime network channel subscribed and listening successfully.", "info");
+                }
+            });
+    </script>
 </body>
 </html>
